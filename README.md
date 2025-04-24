@@ -20,21 +20,15 @@ Model tuning and evaluation
 
 Reproducible Research: Complete documentation of the analytical process
 
-Project Structure
-├── data/                 # Processed datasets
-├── notebooks/            # Analysis notebooks
-│   ├── 01_eda.Rmd        # Exploratory Data Analysis
-│   ├── 02_preprocessing.Rmd  # Feature engineering
-│   └── 03_modeling.Rmd   # Model development
-├── R/                    # Utility functions
-├── reports/              # Generated reports
-└── README.md             # Project overview
-Key Findings
-Identified key predictors of loan default through EDA
-
-Engineered relevant features to improve model performance
-
-Developed a random forest model with competitive performance
+loan-default-prediction/  
+├── 📂 data/                # Cleaned & processed datasets  
+├── 📂 notebooks/           # Step-by-step analysis  
+│   ├── 01_eda.Rmd         🔍 Exploratory Data Analysis  
+│   ├── 02_preprocessing.Rmd ⚙️ Feature Engineering  
+│   └── 03_modeling.Rmd    🤖 Random Forest Model  
+├── 📂 R/                  # Custom utility functions  
+├── 📂 reports/            # Final outputs (HTML/PDF)  
+└── 📄 README.md           # Project overview  
 
 Requirements
 R (≥ 4.0.0)
@@ -48,3 +42,5 @@ ggplot2
 corrplot
 
 ranger (for random forest implementation)
+
+the code in the file presentation-loan-competition
