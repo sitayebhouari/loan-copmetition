@@ -1,0 +1,331 @@
+---
+title: "Loan Presentation"
+author: "Si Tayeb Houari"
+date: "2025-03-23"
+output: html_document
+---
+
+#Overview:
+Welcome to the Loan Default Prediction Challenge 2025! This competition is designed to help data scientists and machine learning enthusiasts practice their skills with a real-world financial dataset.
+Your Goal: Your goal is to predict whether a loan applicant is at risk of defaulting based on their financial and personal information.
+
+#Evaluation Metric
+Submissions will be evaluated using the F1 Score, a metric that balances precision and recall:
+F1=2× Precision+Recall/Precision×Recall
+
+
+#1. Business Context & Real-World Impact
+.Why does this problem matter?
+
+.Who benefits from this model? (Banks, financial institutions, insurance companies?)
+
+.How does accurate classification improve decision-making? (E.g., reducing loan defaults, improving financial stability)
+
+.What are the consequences of misclassification?
+
+.False Positives (predicting high risk when the person is actually low risk) → Lost business opportunities.
+
+.False Negatives (predicting low risk when the person is actually high risk) → Increased loan defaults.
+
+#2. Data Challenges & Solutions
+.Imbalanced Data: Most real-world classification problems suffer from class imbalance. We addressed this using SMOTE (Synthetic Minority Oversampling Technique).
+
+.Feature Selection: Some features may not be useful (e.g., Id or highly correlated variables).
+
+.Missing Data: If applicable, how did you handle missing values? (e.g., imputation, removal)
+
+# 3. Model Selection Justification
+Explain why you chose Random Forest over other models:
+
+✅ Why not Logistic Regression?
+
+Too simple and assumes a linear decision boundary, which may not capture complex patterns in the data.
+
+✅ Why not XGBoost?
+
+While XGBoost is powerful, it may overfit when hyperparameters are not well-tuned.
+
+
+✅ Why Random Forest?
+
+Random Forest performed better in terms of accuracy and generalization in this dataset.
+
+Random Forest is more robust to noisy data and does not require extensive hyperparameter tuning.
+
+It provides strong performance with minimal tuning.
+
+Works well with both categorical and numerical data.
+
+Less sensitive to hyperparameter choices compared to boosting models.
+
+Reduces variance and prevents overfitting by averaging multiple trees.
+```{r}
+# ✅ Load Required Libraries
+library(tidymodels)
+library(tidyverse)
+library(skimr)
+library(themis)  # Handling class imbalance
+library(ggcorrplot)  # Correlation matrix visualization
+library(ranger)  # Fast Random Forest
+```
+
+
+
+
+```{r}
+# Load datasets
+train <- read.csv(file.choose())
+test <- read.csv(file.choose())
+
+# Convert target variable to factor
+train <- train %>%
+  mutate(Risk_Flag = as.factor(Risk_Flag))  # Ensures classification
+
+```
+
+
+```{r}
+
+head(train)
+```
+
+
+
+
+```{r}
+skim(train)  # Summary statistics
+
+```
+
+#eda
+```{r}
+#Visualize Class Distribution"epresents the number of samples for each class (Risk_Flag)"
+
+# Bar plot
+ggplot(train, aes(x = as.factor(Risk_Flag))) + 
+  geom_bar(fill = "steelblue") + 
+  labs(title = "Class Distribution")
+
+# Pie chart
+train %>% 
+  count(Risk_Flag) %>% 
+  ggplot(aes(x = "", y = n, fill = as.factor(Risk_Flag))) + 
+  geom_bar(stat = "identity", width = 1) + 
+  coord_polar(theta = "y") + 
+  labs(title = "Class Distribution (Pie Chart)", fill = "Risk_Flag") + 
+  theme_void()
+#class proportions 
+train %>%
+  count(Risk_Flag) %>%
+  mutate(prop = n / sum(n))
+```
+
+
+
+```{r}
+#Numeric Variable Distributions
+train %>%
+  pivot_longer(cols = c(Income, Age, Experience, CURRENT_JOB_YRS, CURRENT_HOUSE_YRS)) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "green", alpha = 0.7) +
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Distribution of Numeric Variables")
+
+```
+2️⃣ Why Is This Important?
+Helps identify skewness (e.g., right-skewed income distribution).
+Detects outliers (e.g., extreme values in income or experience).
+Shows data spread, indicating whether variables need transformation (e.g., log transformation for highly skewed distributions).
+
+3️⃣ Key Takeaways
+Income: Often right-skewed; may require log transformation.
+Age & Experience: Should follow a reasonable distribution. Large gaps or outliers might indicate data issues.
+CURRENT_JOB_YRS & CURRENT_HOUSE_YRS: Shorter durations could indicate frequent job or house changes, which may be useful for prediction.
+
+##
+
+Key Observations from the Distribution Plots
+1️⃣ Age:
+
+The distribution appears uniform, except for a peak around age 20.
+
+The presence of a spike suggests a potential data imbalance or a large group of young applicants.
+
+2️⃣ Experience:
+
+The data is fairly evenly distributed.
+
+This suggests that experience is well-spread across different levels, which is good for modeling.
+
+3️⃣ Income:
+
+The distribution is approximately uniform, but with a concentration towards lower values.
+
+Suggests a wide income range, but many applicants earn lower salaries.
+
+4️⃣ Current Job Years:
+
+The distribution is right-skewed, meaning most applicants have been at their job for a short period.
+
+Longer tenure is less frequent, which could impact loan stability and default risk.
+
+5️⃣ Current House Years:
+
+The distribution has distinct peaks at specific values (e.g., 10, 12, 13, 14 years).
+
+Indicates data irregularities or possible data collection issues (e.g., rounding or predefined categories).
+
+Further investigation is needed—perhaps this feature was recorded in buckets rather than as continuous data.
+
+```{r}
+#Relationship Between Variables and Risk_Flag
+
+ggplot(train, aes(x = Risk_Flag, y = Income)) +
+  geom_boxplot(fill = "orange", alpha = 0.6) +
+  labs(title = "Income vs Loan Default Risk", x = "Risk_Flag", y = "Income")
+
+ggplot(train, aes(x = Risk_Flag, y = Age)) +
+  geom_boxplot(fill = "purple", alpha = 0.6) +
+  labs(title = "Age vs Loan Default Risk", x = "Risk_Flag", y = "Age")
+
+```
+
+1️⃣ Age vs Loan Default Risk
+The first boxplot compares Age between customers who defaulted (Risk_Flag = 1) and those who did not (Risk_Flag = 0).
+
+The median age is similar across both groups, indicating no strong age-related trend in default risk.
+
+2️⃣ Income vs Loan Default Risk
+The second boxplot compares Income across default and non-default groups.
+
+The distribution appears nearly identical, suggesting that income alone does not significantly differentiate risk levels.
+
+```{r}
+
+#cor_matrix
+cor_matrix <- train %>%
+  select(where(is.numeric)) %>%
+  cor()
+
+ggcorrplot(cor_matrix, lab = TRUE, colors = c("red", "white", "green"))
+
+
+```
+#modeling
+
+
+✔ income_per_exp → Measures how much income a person earns per year of experience.
+✔ stability_index → Evaluates job stability based on experience.
+✔ own_both → Identifies individuals with strong asset ownership.
+
+These features add valuable insights for predicting loan risk, helping the model make better decisions
+
+
+
+```{r}
+# ✅ Load Required Libraries
+library(tidymodels)
+library(tidyverse)
+library(skimr)
+library(themis)  # Handling class imbalance
+library(ggcorrplot)  # Correlation matrix visualization
+library(ranger)  # Fast Random Forest
+
+# ✅ Convert Target Variable to Factor
+train <- train %>%
+  mutate(Risk_Flag = as.factor(Risk_Flag))  # Ensures classification
+
+# ✅ Feature Engineering: Create New Features
+train <- train %>%
+  mutate(
+    income_per_exp = Income / (Experience + 1),  # Avoid division by zero
+    stability_index = ifelse(Experience > 0, CURRENT_JOB_YRS / Experience, 0),
+    own_both = ifelse(Car_Ownership == "Yes" & House_Ownership == "Owned", "Yes", "No")
+  )
+
+test <- test %>%
+  mutate(
+    income_per_exp = Income / (Experience + 1),
+    stability_index = ifelse(Experience > 0, CURRENT_JOB_YRS / Experience, 0),
+    own_both = ifelse(Car_Ownership == "Yes" & House_Ownership == "Owned", "Yes", "No")
+  )
+
+# ✅ Define Preprocessing Recipe
+loan_recipe <- recipe(Risk_Flag ~ ., data = train) %>%
+  update_role(Id, new_role = "ID") %>% # Id stays in the dataset but won’t be used as a predictor
+  step_zv(all_predictors()) %>%  # Remove zero-variance predictors
+  step_log(Income, base = 10) %>%  # Log-transform income
+  step_dummy(all_nominal_predictors(), one_hot = TRUE) %>%  # One-hot encoding
+  step_normalize(all_numeric_predictors()) %>%  # Normalize numeric variables
+  step_smote(Risk_Flag)  # Handle class imbalance
+
+# ✅ Define Random Forest Model (Default Hyperparameters)
+rf_model <- rand_forest(
+  trees = 500  # Number of trees (default)
+) %>%
+  set_engine("ranger") %>%
+  set_mode("classification")
+
+# ✅ Create Workflow
+rf_wf <- workflow() %>%
+  add_model(rf_model) %>%
+  add_recipe(loan_recipe)
+
+# ✅ Fit Model on Training Data
+rf_fit <- rf_wf %>%
+  fit(data = train)
+
+# ✅ Predict on Test Data
+rf_preds <- predict(rf_fit, test, type = "prob") %>%
+  bind_cols(predict(rf_fit, test, type = "class")) %>%
+  bind_cols(test %>% select(Id))
+
+# ✅ Convert Probabilities to Class Labels
+rf_preds <- rf_preds %>%
+  mutate(Risk_Flag = ifelse(.pred_1 >= 0.5, 1, 0)) %>%
+  select(Id, Risk_Flag)
+
+# ✅ Model Performance Evaluation on Training Data
+train_preds <- predict(rf_fit, train, type = "prob") %>%
+  bind_cols(predict(rf_fit, train, type = "class")) %>%
+  bind_cols(train %>% select(Risk_Flag))
+
+# Ensure factors for comparison
+train_preds <- train_preds %>%
+  mutate(.pred_class = as.factor(.pred_class),
+         Risk_Flag = as.factor(Risk_Flag))
+
+# Compute Metrics
+train_metrics <- train_preds %>%
+  metrics(truth = Risk_Flag, estimate = .pred_class)
+
+# Compute F1-score
+train_f1 <- train_preds %>%
+  f_meas(truth = Risk_Flag, estimate = .pred_class)
+
+
+```
+
+
+```{r}
+
+# Print Training Metrics
+print("📊 Model Performance on Training Data:")
+print(train_metrics)
+print("🔹 F1-Score:")
+print(train_f1)
+```
+
+
+```{r}
+# ✅ Save Submission File
+submission_path <- "C:/Users/Propriétaire/Downloads/submission_rf_fixed.csv"
+write_csv(rf_preds, submission_path)
+
+cat("✅ Submission file saved successfully at:", submission_path)
+
+```
+
+
+
+
